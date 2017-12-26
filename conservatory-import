@@ -1,0 +1,85 @@
+#!/usr/bin/env python3
+
+# Import successive releases into a git repository, for conservatory.github.io 
+
+# Copyright (C) 2017 by Karl Fogel
+# 
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the Affero GNU General Public License as
+# published by the Free Software Foundation, either version 3 of the
+# License, or (at your option) any later version.
+# 
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the Affero
+# GNU General Public License for more details.
+# 
+# You should have received a copy of the Affero GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+__doc__ = """\
+Import successive releases into a git repository,
+for preservation at conservatory.github.io.
+
+Usage:
+
+  ./${0} [-p PREFIX_FILE] DIST-0.0.tar.gz [DIST-0.1.tar.gz [...]]
+
+Create a git repository named DIST, and import successive releases
+into it.  If a PREFIX_FILE is provided, prepend it to the 'README'
+file in the distribution in each commit (try reasonable variations
+such as 'README.md', 'readme.txt', etc).
+"""
+
+import getopt
+import sys
+import re
+
+
+def main():
+    readme_prefix = None
+
+    try:
+        (opts, args) = getopt.getopt(sys.argv[1:], "ph?", [ "help", "usage" ])
+    except getopt.GetoptError as err:
+        sys.stderr.write(str(err))
+        sys.stderr.write("\n")
+        sys.exit(1)
+
+    for opt, optarg in opts:
+        if opt in ("-h", "-?", "--help", "--usage"):
+            print(__doc__)
+            sys.exit(0)
+        elif opt in ("-p"):
+            with open(optarg, 'r') as f:
+                readme_prefix = f.read()
+
+    if len(args) < 1:
+        sys.stderr.write("ERROR: Need at least one release to work with.\n")
+        sys.exit(1)
+
+    relname_matcher = re.compile("^(.*)(-|_)([0-9.]+)(\\.|-|_)"
+                         "(tar\\.gz|tgz|zip|bzip|bzip2|z|Z|)$")
+
+    # Figure out the name of the thing.
+    m = relname_matcher.match(args[0])
+    if m is None:
+        sys.stderr.write("ERROR: Can't figure out name from '%s'.\n" % args[0])
+        sys.exit(1)
+    name = m.group(1)
+
+    # Let's just assume that a lexical sort will DTRT.  It probably will.
+    for release in sorted(args):
+        m = relname_matcher.match(release)
+        if m is None:
+            sys.stderr.write("ERROR: Can't parse release '%s'.\n" % args[0])
+            sys.exit(1)
+        print("Release number: %s" % m.group(3))
+        print("Extension:      '%s'" % m.group(5))
+        print("")
+    
+    print("WIP: This program is not done yet.")
+
+
+if __name__ == '__main__':
+    main()

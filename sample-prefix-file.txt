@@ -1,0 +1,17 @@
+##############################################################################
+#                                                                            #
+#   This is the Conservatory copy of Foo Bar Baz (FBB), an open source       #
+#   program for qux.  The upstream source is at https://example.com/fbb/.    #
+#                                                                            #
+#   The Conservatory (http://conservatory.github.io/) is a place where       #
+#   software that has no other public version-controlled home on the         #
+#   Internet is made available in a git repository.  For FBB, we             #
+#   try to offer each FBB release (starting from fbb-0.1, the oldest         #
+#   available at the time we picked up FBB) as a single git commit.          #
+#                                                                            #
+#   This README is the only file we've changed from upstream, and the        #
+#   only change we made was to add this note.  Below is the content of       #
+#   the original README.                                                     #
+#                                                                            #
+##############################################################################
+
