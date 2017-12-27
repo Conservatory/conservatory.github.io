@@ -112,7 +112,11 @@ def main():
         #
         # Aha:
         # https://stackoverflow.com/questions/3949741/how-do-i-import-a-new-release-of-a-project-into-my-git-repository
-        # has some good ideas about how to do this.
+        # has some good ideas about how to do this.  Despite the way
+        # conversation in the comments there went, it looks like 
+        # 'git add -A' is the way to go, and
+        # https://stackoverflow.com/questions/572549/difference-between-git-add-a-and-git-add
+        # seems to confirm this.
 
     # WIP: working here
 
