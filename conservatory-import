@@ -26,13 +26,23 @@ Usage:
   ./${0} [-p PREFIX_FILE] DIST-0.0.tar.gz [DIST-0.1.tar.gz [...]]
 
 Create a git repository named DIST, and import successive releases
-into it.  If a PREFIX_FILE is provided, prepend it to the 'README'
-file in the distribution in each commit (try reasonable variations
-such as 'README.md', 'readme.txt', etc).
+into it.  The arguments are the release tarballs, and they must be
+presented as arguments in the right order -- this program does not yet
+try to fix the ordering if you get it wrong.
+
+The releases can have ".tar.gz" or ".tgz" extensions.  (Support for
+bzip2, etc is planned, and patches are welcome of course.)
+
+If a PREFIX_FILE is provided, prepend it to the 'README' file in the
+distribution in each commit, finding the README by trying reasonable
+variations such as 'README.md', 'readme.txt', etc.
 """
 
 import getopt
 import sys
+import subprocess
+import pathlib
+import os
 import re
 
 
@@ -68,7 +78,26 @@ def main():
         sys.exit(1)
     name = m.group(1)
 
+    # Ensure there is a local Git repository, either by making it or by
+    # finding one already here (in which case we assume it's the one we
+    # want to use -- i.e., that it already has earlier versions in its
+    # history and that we're just adding new versions on top of those.
+    if os.path.isfile(name):
+        sys.stderr.write("ERROR: New git repository blocked by file at '%s'.\n"
+                         % name)
+        sys.exit(1)
+    elif os.path.isdir(name) and not os.path.isdir(os.path.join(name, ".git")):
+        sys.stderr.write("ERROR: Directory at '%s' is not a Git repository.\n"
+                         % name)
+        sys.exit(1)
+    elif not os.path.exists(name):
+        subprocess.call(['git', 'init', name,])
+    else:
+        print("Proceeding with '%s' as an existing Git repository." % name)
+
     # Let's just assume that a lexical sort will DTRT.  It probably will.
+    prev_release = None
+    this_release = None
     for release in sorted(args):
         m = relname_matcher.match(release)
         if m is None:
@@ -77,8 +106,13 @@ def main():
         print("Release number: %s" % m.group(3))
         print("Extension:      '%s'" % m.group(5))
         print("")
-    
-    print("WIP: This program is not done yet.")
+        # Sure hope those arguments are in the right order, and that each
+        # tarball unpacks into a predictably-uniquely-named directory.
+        #
+        # TODO: Some day, handle more things than just gzipped tar files.
+        # subprocess.call(['tar', 'zxvf', release,])
+
+    # WIP: working here
 
 
 if __name__ == '__main__':
