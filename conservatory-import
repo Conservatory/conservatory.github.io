@@ -96,8 +96,6 @@ def main():
         print("Proceeding with '%s' as an existing Git repository." % name)
 
     # Let's just assume that a lexical sort will DTRT.  It probably will.
-    prev_release = None
-    this_release = None
     for release in sorted(args):
         m = relname_matcher.match(release)
         if m is None:
@@ -111,6 +109,10 @@ def main():
         #
         # TODO: Some day, handle more things than just gzipped tar files.
         # subprocess.call(['tar', 'zxvf', release,])
+        #
+        # Aha:
+        # https://stackoverflow.com/questions/3949741/how-do-i-import-a-new-release-of-a-project-into-my-git-repository
+        # has some good ideas about how to do this.
 
     # WIP: working here
 
