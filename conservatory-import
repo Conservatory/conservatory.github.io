@@ -41,6 +41,8 @@ this typical usage will work:
 When a PREFIX_FILE is provided with -p, it is prepended to the "README"
 file in every commit.  The README is identified by trying reasonable
 variations such as "readme", "README.md", "readme.txt", "ReadMe", etc.
+See https://github.com/Conservatory/dcled/blob/master/README (the
+block at the top of the file) for a good example of prefix text.
 
 This program does not push the git repository up to the Conservatory
 for you.  You have to do that manually, by first creating an empty
