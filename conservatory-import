@@ -23,7 +23,7 @@ preservation in https://conservatory.github.io/.
 
 Usage:
 
-  ./${0} [-p PREFIX_FILE] PROJ-0.0.tar.gz [PROJ-0.1.tar.gz [...]]
+  $ conservatory-import [-p PREFIX_FILE] PROJ-0.0.tar.gz [PROJ-0.1.tar.gz [...]]
 
 Create a git repository named PROJ, and import successive releases
 into it.  The arguments are the release tarballs, and they must be
@@ -36,7 +36,7 @@ The order in which you give them on the command line does not matter,
 but they should sort lexically from earliest to latest.  That way,
 this typical usage will work:
 
-  ./${0} -p prefix_file foo-*
+  $ conservatory-import -p prefix_file foo-*
 
 When a PREFIX_FILE is provided with -p, it is prepended to the "README"
 file in every commit.  The README is identified by trying reasonable
@@ -123,6 +123,8 @@ def main():
 
     if len(args) < 1:
         sys.stderr.write("ERROR: Need at least one release to work with.\n")
+        sys.stderr.write("\n")
+        sys.stderr.write("%s\n" % __doc__)
         sys.exit(1)
 
     relname_matcher = re.compile("^(.*)(-|_)([0-9.]+)(\\.|-|_)"
