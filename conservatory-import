@@ -104,7 +104,7 @@ def main():
     readme_prefix = None
 
     try:
-        (opts, args) = getopt.getopt(sys.argv[1:], "qp:h?", 
+        (opts, args) = getopt.getopt(sys.argv[1:], "p:qh?", 
                                      ["prefix=", "quiet", "help", "usage" ])
     except getopt.GetoptError as err:
         sys.stderr.write(str(err))
