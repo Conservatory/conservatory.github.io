@@ -206,7 +206,8 @@ def main():
         if not quiet:
             print("Imported %s %s" % (name, rel_id))
 
-    # Don't spook the user -- give them a checkout of the latest release.
+    # Check out a working tree of the latest release, so we don't
+    # spook the user with a directory that looks empty.
     os.chdir(git_repos)
     subprocess.call(['git', 'checkout', '--quiet', '--force',])
     os.chdir(saved_cwd)
