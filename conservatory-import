@@ -32,11 +32,10 @@ try to fix the ordering if you get it wrong.
 
 The releases can be ".tar", ".tar.gz", ".tgz", or ".tar.bz2" format
 (support for zip etc is planned, and patches are welcome of course).
-The order in which you give them on the command line does not matter,
-but they should sort lexically from earliest to latest.  That way,
-this typical usage will work:
+Because release package names usually sort lexically, this usage will
+typically work:
 
-  $ conservatory-import -p prefix_file foo-*
+  $ conservatory-import -p PREFIX_FILE PROJ-*
 
 When a PREFIX_FILE is provided with -p, it is prepended to the "README"
 file in every commit.  The README is identified by trying reasonable
@@ -162,8 +161,8 @@ def main():
 
     saved_cwd = os.getcwd()
 
-    # Let's just assume that a lexical sort will DTRT.  It probably will.
-    for release_package in sorted(args):
+    # Let's hope the user passed the arguments in the right order.
+    for release_package in args:
         m = relname_matcher.match(release_package)
         if m is None:
             sys.stderr.write("ERROR: Can't parse release '%s'.\n" % args[0])
