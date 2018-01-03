@@ -18,49 +18,104 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 __doc__ = """\
-Import successive releases into a git repository,
-for preservation at conservatory.github.io.
+Import successive releases into a git repository, presumably for
+preservation in https://conservatory.github.io/.
 
 Usage:
 
-  ./${0} [-p PREFIX_FILE] DIST-0.0.tar.gz [DIST-0.1.tar.gz [...]]
+  ./${0} [-p PREFIX_FILE] PROJ-0.0.tar.gz [PROJ-0.1.tar.gz [...]]
 
-Create a git repository named DIST, and import successive releases
+Create a git repository named PROJ, and import successive releases
 into it.  The arguments are the release tarballs, and they must be
 presented as arguments in the right order -- this program does not yet
 try to fix the ordering if you get it wrong.
 
-The releases can have ".tar.gz" or ".tgz" extensions.  (Support for
-bzip2, etc is planned, and patches are welcome of course.)
+The releases can be ".tar", ".tar.gz", ".tgz", or ".tar.bz2" format
+(support for zip etc is planned, and patches are welcome of course).
+The order in which you give them on the command line does not matter,
+but they should sort lexically from earliest to latest.  That way,
+this typical usage will work:
 
-If a PREFIX_FILE is provided, prepend it to the 'README' file in the
-distribution in each commit, finding the README by trying reasonable
-variations such as 'README.md', 'readme.txt', etc.
+  ./${0} -p prefix_file foo-*
+
+When a PREFIX_FILE is provided with -p, it is prepended to the "README"
+file in every commit.  The README is identified by trying reasonable
+variations such as "readme", "README.md", "readme.txt", "ReadMe", etc.
+
+This program does not push the git repository up to the Conservatory
+for you.  You have to do that manually, by first creating an empty
+repository on GitHub via the web UI, and then pushing all the commits
+up to it:
+
+  $ cd new_local_repository_with_all_releases_imported
+  $ git remote add origin git@github.com:Conservatory/PROJ.git
+  $ git push -u origin master
 """
 
 import getopt
 import sys
+import shutil
 import subprocess
-import pathlib
+import tempfile
+import tarfile
+import zipfile
 import os
 import re
 
 
+def maybe_amend_readme(prefix):
+    """If a readme file is present in cwd, prepend string PREFIX to it.
+    No adjustment is made to PREFIX; it is prepended exactly as is.
+    Only modify the first plausible readme file found (see the code
+    for the order they're tried in).  The return value is undefined.
+    """
+    base = "ReadMe"
+
+    # See https://github.com/github/markup#markups
+    for name in (base.upper(), base.lower(), base, base.capitalize(),):
+        for ext in ('', 
+                    '.md',
+                    '.mkdn',
+                    '.markdown',
+                    '.mdown',
+                    '.txt',
+                    '.text',
+                    '.rst',
+                    '.asciidoc',
+                    '.org',
+                    '.textile',
+                    '.rdoc',
+                    '.creole',
+                    '.mediawiki',
+                    '.wiki',
+                    '.pod',):
+            if os.path.exists(name + ext):
+                with open(name + ext, 'r+') as f:
+                    orig = f.read()
+                    f.seek(0)
+                    f.write(prefix + orig)
+                return
+
+
 def main():
+    quiet = False
     readme_prefix = None
 
     try:
-        (opts, args) = getopt.getopt(sys.argv[1:], "ph?", [ "help", "usage" ])
+        (opts, args) = getopt.getopt(sys.argv[1:], "qp:h?", 
+                                     ["prefix=", "quiet", "help", "usage" ])
     except getopt.GetoptError as err:
         sys.stderr.write(str(err))
         sys.stderr.write("\n")
         sys.exit(1)
 
     for opt, optarg in opts:
-        if opt in ("-h", "-?", "--help", "--usage"):
+        if opt in ("-h", "-?", "--help", "--usage",):
             print(__doc__)
             sys.exit(0)
-        elif opt in ("-p"):
+        elif opt in ("-q", "--quiet",):
+            quiet = True
+        elif opt in ("-p", "--prefix",):
             with open(optarg, 'r') as f:
                 readme_prefix = f.read()
 
@@ -78,47 +133,78 @@ def main():
         sys.exit(1)
     name = m.group(1)
 
+    # Place the git repository in cwd, with a "-repos" extension to
+    # avoid collisions with tarballs that unpack to just 'name'.
+    git_repos = "%s-repos" % name
+    git_repos_abs = os.path.join(os.getcwd(), git_repos)
+
     # Ensure there is a local Git repository, either by making it or by
     # finding one already here (in which case we assume it's the one we
     # want to use -- i.e., that it already has earlier versions in its
     # history and that we're just adding new versions on top of those.
-    if os.path.isfile(name):
+    if os.path.isfile(git_repos):
         sys.stderr.write("ERROR: New git repository blocked by file at '%s'.\n"
-                         % name)
+                         % git_repos)
         sys.exit(1)
-    elif os.path.isdir(name) and not os.path.isdir(os.path.join(name, ".git")):
+    elif os.path.isdir(git_repos) and not os.path.isdir(os.path.join(git_repos, ".git")):
         sys.stderr.write("ERROR: Directory at '%s' is not a Git repository.\n"
-                         % name)
+                         % git_repos)
         sys.exit(1)
-    elif not os.path.exists(name):
-        subprocess.call(['git', 'init', name,])
+    elif not os.path.exists(git_repos):
+        subprocess.call(['git', 'init', '--quiet', git_repos,])
     else:
-        print("Proceeding with '%s' as an existing Git repository." % name)
+        print("Proceeding with '%s' as an existing Git repository." % git_repos)
+
+    saved_cwd = os.getcwd()
 
     # Let's just assume that a lexical sort will DTRT.  It probably will.
-    for release in sorted(args):
-        m = relname_matcher.match(release)
+    for release_package in sorted(args):
+        m = relname_matcher.match(release_package)
         if m is None:
             sys.stderr.write("ERROR: Can't parse release '%s'.\n" % args[0])
             sys.exit(1)
-        print("Release number: %s" % m.group(3))
-        print("Extension:      '%s'" % m.group(5))
-        print("")
-        # Sure hope those arguments are in the right order, and that each
-        # tarball unpacks into a predictably-uniquely-named directory.
-        #
-        # TODO: Some day, handle more things than just gzipped tar files.
-        # subprocess.call(['tar', 'zxvf', release,])
-        #
-        # Aha:
-        # https://stackoverflow.com/questions/3949741/how-do-i-import-a-new-release-of-a-project-into-my-git-repository
-        # has some good ideas about how to do this.  Despite the odd
-        # turn in the conversation in the comments there, it looks like 
-        # 'git add -A' is the way to go, and
-        # https://stackoverflow.com/questions/572549/difference-between-git-add-a-and-git-add
-        # seems to confirm this.
+        rel_id = m.group(3)
+        extension = m.group(5)
 
-    # WIP: working here
+        # TODO: Although for now we assume tar, compressed with gzip
+        # or bzip2, we should make a wrapper extractor class and
+        # handle zipfiles or exotically compressed tarfiles too.
+        rel = tarfile.open(release_package, 'r')
+        rel_members = rel.getnames()
+        common_prefix = os.path.commonprefix(rel_members)
+
+        # Security check.
+        for path in rel_members:
+            if path.startswith("/") or path.find("/../") != -1:
+                sys.stderr.write("ERROR: Possibly malicious release:\n")
+                sys.stderr.write("       Path \"%s\" is suspect.\n" % path)
+                sys.stderr.write("       Exiting without unpacking.\n")
+                sys.exit(1)
+
+        sandbox = tempfile.mkdtemp()
+        os.chdir(sandbox)
+        rel.extractall()
+        if common_prefix != '': 
+            os.chdir(common_prefix)
+            
+        # Yes, we are really doing it this way.
+        shutil.move(os.path.join(git_repos_abs, ".git"), os.getcwd())
+        maybe_amend_readme(readme_prefix)
+        subprocess.call(['git', 'add', '-A', '.',])
+        subprocess.call(['git', 'commit', '--quiet', 
+                         '-m', 'Import release %s' % rel_id])
+        shutil.move(os.path.join(os.getcwd(), ".git"), git_repos_abs)
+        shutil.rmtree(sandbox)
+
+        os.chdir(saved_cwd)
+        rel.close()
+        print("Imported %s %s" % (name, rel_id))
+
+    # Don't spook the user -- give them a checkout of the latest release.
+    os.chdir(git_repos)
+    subprocess.call(['git', 'checkout', '--quiet', '--force',])
+    os.chdir(saved_cwd)
+    sys.stderr.write("Done.  Git repository '%s' is ready.\n" % git_repos_abs)
 
 
 if __name__ == '__main__':
