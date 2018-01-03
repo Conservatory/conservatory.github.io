@@ -156,8 +156,9 @@ def main():
         sys.exit(1)
     elif not os.path.exists(git_repos):
         subprocess.call(['git', 'init', '--quiet', git_repos,])
-    else:
-        print("Proceeding with '%s' as an existing Git repository." % git_repos)
+    elif not quiet:
+        print("Proceeding with '%s' as an existing Git repository." 
+              % git_repos)
 
     saved_cwd = os.getcwd()
 
@@ -202,13 +203,16 @@ def main():
 
         os.chdir(saved_cwd)
         rel.close()
-        print("Imported %s %s" % (name, rel_id))
+        if not quiet:
+            print("Imported %s %s" % (name, rel_id))
 
     # Don't spook the user -- give them a checkout of the latest release.
     os.chdir(git_repos)
     subprocess.call(['git', 'checkout', '--quiet', '--force',])
     os.chdir(saved_cwd)
-    sys.stderr.write("Done.  Git repository '%s' is ready.\n" % git_repos_abs)
+    if not quiet:
+        sys.stderr.write("Done.  Git repository '%s' is ready.\n" 
+                         % git_repos_abs)
 
 
 if __name__ == '__main__':
