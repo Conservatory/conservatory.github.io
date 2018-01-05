@@ -27,7 +27,7 @@ Usage:
 
 Create a git repository named PROJ, and import successive releases
 into it.  The arguments are the release tarballs, and they must be
-presented as arguments in the right order -- this program does not yet
+presented as arguments in the right order -- this program does not
 try to fix the ordering if you get it wrong.
 
 The releases can be ".tar", ".tar.gz", ".tgz", or ".tar.bz2" format
