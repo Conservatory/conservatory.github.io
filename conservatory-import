@@ -90,6 +90,7 @@ import tempfile
 import tarfile
 import zipfile
 import os
+import stat
 import re
 
 
@@ -119,11 +120,29 @@ def maybe_amend_readme(prefix):
                     '.mediawiki',
                     '.wiki',
                     '.pod',):
-            if os.path.exists(name + ext):
-                with open(name + ext, 'r+') as f:
-                    orig = f.read()
-                    f.seek(0)
-                    f.write(prefix + orig)
+            path = name + ext
+            if os.path.exists(path):
+                try:
+                    with open(path, 'r+') as f:
+                        orig = f.read()
+                        f.seek(0)
+                        f.write(prefix + orig)
+                except PermissionError:
+                    orig_perms = os.stat(path)[stat.ST_MODE]
+                    os.chmod(path, 0o644)
+                    # Try again, albeit WETly.
+                    with open(path, 'r+') as f:
+                        orig = f.read()
+                        f.seek(0)
+                        f.write(prefix + orig)
+                    # Restore the original read-only permissions.
+                    # Although I don't know why we bother, since
+                    # apparently git doesn't preserve them anyway.
+                    # But maybe we'll learn how to fix that later,
+                    # and in any case, that's no excuse for not
+                    # preserving them now: the bug should always be
+                    # confined to as narrow a space as possible.
+                    os.chmod(path, orig_perms)
                 return
 
 
