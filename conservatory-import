@@ -23,7 +23,7 @@ preservation in https://conservatory.github.io/.
 
 Usage:
 
-  $ conservatory-import [-p PREFIX_FILE] PROJ-0.0.tar.gz [PROJ-0.1.tar.gz [...]]
+$ conservatory-import [-r README_PREFIX_FILE] PROJ-0.0.tgz [PROJ-0.1.tgz [...]]
 
 Create a git repository named PROJ, and import successive releases
 into it.  The arguments are the release tarballs, and they must be
@@ -35,9 +35,9 @@ The releases can be ".tar", ".tar.gz", ".tgz", or ".tar.bz2" format
 Because release package names usually sort lexically, this usage will
 typically work:
 
-  $ conservatory-import -p PREFIX_FILE PROJ-*
+$ conservatory-import -r PREFIX_FILE PROJ-*
 
-When a PREFIX_FILE is provided with -p, it is prepended to the "README"
+When a PREFIX_FILE is provided with -r, it is prepended to the "README"
 file in every commit.  The README is identified by trying reasonable
 variations such as "readme", "README.md", "readme.txt", "ReadMe", etc.
 See https://github.com/Conservatory/dcled/blob/master/README (the
@@ -103,8 +103,11 @@ def main():
     readme_prefix = None
 
     try:
-        (opts, args) = getopt.getopt(sys.argv[1:], "p:qh?", 
-                                     ["prefix=", "quiet", "help", "usage" ])
+        (opts, args) = getopt.getopt(sys.argv[1:], "r:qh?", 
+                                     ["readme-prefix=", 
+                                      "quiet", 
+                                      "help", 
+                                      "usage" ])
     except getopt.GetoptError as err:
         sys.stderr.write(str(err))
         sys.stderr.write("\n")
@@ -116,7 +119,7 @@ def main():
             sys.exit(0)
         elif opt in ("-q", "--quiet",):
             quiet = True
-        elif opt in ("-p", "--prefix",):
+        elif opt in ("-r", "--readme-prefix",):
             with open(optarg, 'r') as f:
                 readme_prefix = f.read()
 
