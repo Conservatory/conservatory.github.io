@@ -257,7 +257,7 @@ def main():
     # Ensure there is a local Git repository, either by making it or by
     # finding one already here (in which case we assume it's the one we
     # want to use -- i.e., that it already has earlier versions in its
-    # history and that we're just adding new versions on top of those.
+    # history and that we're just adding new versions on top of those).
     if os.path.isfile(git_repos):
         sys.stderr.write("ERROR: New git repository blocked by file at '%s'.\n"
                          % git_repos)
