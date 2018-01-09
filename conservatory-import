@@ -23,7 +23,7 @@ preservation in https://conservatory.github.io/.
 
 Usage:
 
-$ conservatory-import [-r README_PREFIX_FILE] PROJ-0.0.tgz [PROJ-0.1.tgz [...]]
+  $ conservatory-import [OPTIONS...] PROJ-0.0.tgz [PROJ-0.1.tgz [...]]
 
 Create a git repository named PROJ, and import successive releases
 into it.  The arguments are the release tarballs, and they must be
@@ -35,13 +35,30 @@ The releases can be ".tar", ".tar.gz", ".tgz", or ".tar.bz2" format
 Because release package names usually sort lexically, this usage will
 typically work:
 
-$ conservatory-import -r PREFIX_FILE PROJ-*
+  $ conservatory-import [OPTIONS...] PROJ-*
 
-When a PREFIX_FILE is provided with -r, it is prepended to the "README"
-file in every commit.  The README is identified by trying reasonable
-variations such as "readme", "README.md", "readme.txt", "ReadMe", etc.
-See https://github.com/Conservatory/dcled/blob/master/README (the
-block at the top of the file) for a good example of prefix text.
+Options:
+
+  -r / --readme-prefix PREFIX_FILE
+
+     Prepend the contents of PREFIX_FILE to the "README" file in every
+     commit.  The README is identified by trying reasonable variations
+     such as "readme.txt", "README.md", "ReadMe.rst", and so on.  See
+     https://github.com/Conservatory/dcled/blob/master/README (the
+     block at the top of the file) for a good example of prefix text.
+
+  -m / --metadata-dir DIRECTORY
+
+     For every commit, get commit metadata from files under DIRECTORY
+     that are named according to the release number.  Use the file
+     DIRECTORY/REL-msg as the commit message for release REL, use
+     DIRECTORY/REL-date as the git date for the commit, and use
+     DIRECTORY/REL-author as the git author.  Each REL must match
+     exactly the release identifier portion of the distribution name.
+     For example, for "PROJ-1.3.tgz", REL would be "1.3", and for
+     PROJ-2.1-beta3.tar.gz" REL would be "2.1-beta3".  If a file is
+     not present, then use a default (whatever would have been used
+     for that metadata on that commit if -m had not been passed).
 
 This program does not push the git repository up to the Conservatory
 for you.  You have to do that manually, by first creating an empty
@@ -98,13 +115,57 @@ def maybe_amend_readme(prefix):
                 return
 
 
+def do_commit(rel_id, metadata_dir):
+    """Commit REL_ID in cwd, using metadata files from METADATA_DIR.
+    If METADATA_DIR is None, use no metadata files.  Else it is an
+    absolute path to a directory, and whichever of these files are
+    present in that directory are used as follows:
+
+      REL_ID-msg:      Whole contents is used as commit message.
+      REL_ID-date:     First line is used as date for this commit.
+      REL_ID-author:   First line is used as author for this commit.
+    """
+    cmd = ['git', 'commit', '--quiet',]
+    params = {}
+
+    # Gather any metadata from metadata_dir.
+    for fbase in ["msg", "date", "author",]:
+        path = os.path.join(metadata_dir, rel_id + "-" + fbase)
+        try:
+            with open(path, 'r') as f:
+                # TODO: Sanity-check the strings for quoting chars or
+                # other weirdness?
+                if fbase == "msg":
+                    params[fbase] = f.read()
+                else:
+                    params[fbase] = f.readline().strip()
+        except:
+            pass
+
+    # Build the 'git commit' command line, using whatever data we
+    # found in metadata_dir.
+    if "msg" in params:
+        cmd.extend(("-m", params["msg"],))
+    else:
+        cmd.extend(("-m", "Import release %s" % rel_id,))
+    if "author" in params:
+        cmd.extend(("--author", params["author"],))
+    if "date" in params:
+        cmd.extend(("--date", params["date"],))
+
+    # Do it.
+    subprocess.call(cmd)
+
+
 def main():
     quiet = False
     readme_prefix = None
+    metadata_dir = None
 
     try:
-        (opts, args) = getopt.getopt(sys.argv[1:], "r:qh?", 
+        (opts, args) = getopt.getopt(sys.argv[1:], "r:m:qh?", 
                                      ["readme-prefix=", 
+                                      "metadata-dir=",
                                       "quiet", 
                                       "help", 
                                       "usage" ])
@@ -122,6 +183,12 @@ def main():
         elif opt in ("-r", "--readme-prefix",):
             with open(optarg, 'r') as f:
                 readme_prefix = f.read()
+        elif opt in ("-m", "--metadata-dir",):
+            metadata_dir = os.path.abspath(optarg)
+            if not os.path.isdir(metadata_dir):
+                sys.stderr.write("ERROR: '%s' is not a directory\n" 
+                                 % metadata_dir)
+                sys.exit(1)
 
     if len(args) < 1:
         sys.stderr.write("ERROR: Need at least one release to work with.\n")
@@ -129,11 +196,11 @@ def main():
         sys.stderr.write("%s\n" % __doc__)
         sys.exit(1)
 
-    relname_matcher = re.compile("^(.*)(-|_)([0-9.]+)(\\.|-|_)"
+    relname_matcher = re.compile("^([^/]+)(-|_)([0-9.]+)(\\.|-|_)"
                          "(tar\\.gz|tgz|zip|bzip|bzip2|z|Z|)$")
 
     # Figure out the name of the thing.
-    m = relname_matcher.match(args[0])
+    m = relname_matcher.match(os.path.basename(args[0]))
     if m is None:
         sys.stderr.write("ERROR: Can't figure out name from '%s'.\n" % args[0])
         sys.exit(1)
@@ -166,7 +233,7 @@ def main():
 
     # Let's hope the user passed the arguments in the right order.
     for release_package in args:
-        m = relname_matcher.match(release_package)
+        m = relname_matcher.match(os.path.basename(release_package))
         if m is None:
             sys.stderr.write("ERROR: Can't parse release '%s'.\n" % args[0])
             sys.exit(1)
@@ -198,8 +265,7 @@ def main():
         shutil.move(os.path.join(git_repos_abs, ".git"), os.getcwd())
         maybe_amend_readme(readme_prefix)
         subprocess.call(['git', 'add', '-A', '.',])
-        subprocess.call(['git', 'commit', '--quiet', 
-                         '-m', 'Import release %s' % rel_id])
+        do_commit(rel_id, metadata_dir)
         shutil.move(os.path.join(os.getcwd(), ".git"), git_repos_abs)
         shutil.rmtree(sandbox)
 
