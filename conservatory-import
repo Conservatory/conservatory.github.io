@@ -221,7 +221,7 @@ def main():
         front = "^(" + "|".join([re.escape(x) for x in name_prefixes]) + ")"
         front += "()"  # this is just to keep the match group count the same
     relname_matcher = re.compile(front + "([0-9.]+)(\\.|-|_)" +
-                                 "(tar\\.gz|tgz|zip|bzip|bzip2|z|Z|)$")
+                                 "(tar\\.gz|tgz|zip|ZIP|bzip|bzip2|z|Z|)$")
 
     # Figure out the name of the thing.
     m = relname_matcher.match(os.path.basename(args[0]))
