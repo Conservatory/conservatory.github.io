@@ -60,6 +60,18 @@ Options:
      not present, then use a default (whatever would have been used
      for that metadata on that commit if -m had not been passed).
 
+  -n / --name-prefixes NAME_PREFIX_1[,NAME_PREFIX2,...]
+
+     Supply a comma-separated list of prefixes to be greedily
+     regexp-gobbled before discovering the release identifier.
+
+     This is probably best explained with an example.  Take the
+     MHonArc mail archiver package: it was distributed as
+     "MHonArc1.2.3.tar.gz", "MHonArc2.0.1.tar.gz", etc, until 2.6.5.
+     At that point, upstream started putting a hyphen in the tarball:
+     "MHonArc-2.6.5.tar.gz", then "MHonArc-2.6.6.tar.gz", and so on.
+     To handle this, you'd pass '--name-prefixes MHonArc,MHonArc-'.
+
 This program does not push the git repository up to the Conservatory
 for you.  You have to do that manually, by first creating an empty
 repository on GitHub via the web UI, and then pushing all the commits
@@ -162,9 +174,15 @@ def main():
     readme_prefix = None
     metadata_dir = None
 
+    # If this is not None, it is a list of allowed prefixes to be
+    # regexp-gobbled greedily before the release identifier is found.
+    # See the '--name-prefixes' option documentation for details.
+    name_prefixes = None
+
     try:
-        (opts, args) = getopt.getopt(sys.argv[1:], "r:m:qh?", 
-                                     ["readme-prefix=", 
+        (opts, args) = getopt.getopt(sys.argv[1:], "n:r:m:qh?", 
+                                     ["name-prefixes=",
+                                      "readme-prefix=", 
                                       "metadata-dir=",
                                       "quiet", 
                                       "help", 
@@ -180,6 +198,8 @@ def main():
             sys.exit(0)
         elif opt in ("-q", "--quiet",):
             quiet = True
+        elif opt in ("-n", "--name-prefixes",):
+            name_prefixes = optarg.split(",")
         elif opt in ("-r", "--readme-prefix",):
             with open(optarg, 'r') as f:
                 readme_prefix = f.read()
@@ -196,15 +216,19 @@ def main():
         sys.stderr.write("%s\n" % __doc__)
         sys.exit(1)
 
-    relname_matcher = re.compile("^([^/]+)(-|_)([0-9.]+)(\\.|-|_)"
-                         "(tar\\.gz|tgz|zip|bzip|bzip2|z|Z|)$")
+    front = "^([^/]+)(-|_)"
+    if name_prefixes is not None:
+        front = "^(" + "|".join([re.escape(x) for x in name_prefixes]) + ")"
+        front += "()"  # this is just to keep the match group count the same
+    relname_matcher = re.compile(front + "([0-9.]+)(\\.|-|_)" +
+                                 "(tar\\.gz|tgz|zip|bzip|bzip2|z|Z|)$")
 
     # Figure out the name of the thing.
     m = relname_matcher.match(os.path.basename(args[0]))
     if m is None:
         sys.stderr.write("ERROR: Can't figure out name from '%s'.\n" % args[0])
         sys.exit(1)
-    name = m.group(1)
+    name = m.group(1).strip("-_")
 
     # Place the git repository in cwd, with a "-repos" extension to
     # avoid collisions with tarballs that unpack to just 'name'.
