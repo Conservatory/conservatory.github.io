@@ -105,23 +105,23 @@ def maybe_amend_readme(prefix):
     base = "ReadMe"
 
     # See https://github.com/github/markup#markups
-    for name in (base.upper(), base.lower(), base, base.capitalize(),):
-        for ext in ('', 
-                    '.md',
-                    '.mkdn',
-                    '.markdown',
-                    '.mdown',
-                    '.txt',
-                    '.text',
-                    '.rst',
-                    '.asciidoc',
-                    '.org',
-                    '.textile',
-                    '.rdoc',
-                    '.creole',
-                    '.mediawiki',
-                    '.wiki',
-                    '.pod',):
+    for ext in ('', 
+                '.md',
+                '.mkdn',
+                '.markdown',
+                '.mdown',
+                '.txt',
+                '.text',
+                '.rst',
+                '.asciidoc',
+                '.org',
+                '.textile',
+                '.rdoc',
+                '.creole',
+                '.mediawiki',
+                '.wiki',
+                '.pod',):
+        for name in (base.upper(), base.lower(), base, base.capitalize(),):
             path = name + ext
             if os.path.exists(path):
                 try:
