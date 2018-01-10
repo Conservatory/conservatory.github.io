@@ -60,17 +60,19 @@ Options:
      not present, then use a default (whatever would have been used
      for that metadata on that commit if -m had not been passed).
 
-  -n / --name-prefixes NAME_PREFIX_1[,NAME_PREFIX2,...]
+  -k / --known-names NAME_PREFIX_1[,NAME_PREFIX2,...]
 
-     Supply a comma-separated list of prefixes to be greedily
-     regexp-gobbled before discovering the release identifier.
+     Supply a comma-separated list of known names, to help this script
+     separate them from the release identifier.
 
      This is probably best explained with an example.  Take the
      MHonArc mail archiver package: it was distributed as
      "MHonArc1.2.3.tar.gz", "MHonArc2.0.1.tar.gz", etc, until 2.6.5.
      At that point, upstream started putting a hyphen in the tarball:
      "MHonArc-2.6.5.tar.gz", then "MHonArc-2.6.6.tar.gz", and so on.
-     To handle this, you'd pass '--name-prefixes MHonArc,MHonArc-'.
+     To handle this, you'd pass '--known-names MHonArc'.  (You don't
+     pass '--known-names MHonArc,MHonArc-' because the hyphen is not
+     part of the package's name; it's rare to list multiple names.)
 
 This program does not push the git repository up to the Conservatory
 for you.  You have to do that manually, by first creating an empty
@@ -189,6 +191,38 @@ def do_commit(rel_id, metadata_dir):
     subprocess.call(cmd)
 
 
+def parse_release(release, known_names):
+    """From a RELEASE like "proj-1.0-beta.tar.gz", return a triple
+    tuple like ("proj", "1.0-beta", ".tar.gz",).  If KNOWN_NAMES is
+    not None, it is a list of known prefixes from -k / --known-names,
+    which see."""
+    name = None
+    # First work from the right side and grab the extension.
+    ext_split_re = re.compile(
+        "\\.(tar\\.gz|tar\\.bz|tar\\.bz2|tgz|zip|Zip|ZIP|bzip|bzip2|z|Z)$")
+    ext = ext_split_re.split(release)[-2]
+    # Then work from the front and get the name.
+    if known_names is not None:
+        for prefix in known_names:
+            if release.startswith(prefix):
+                name = prefix
+    if name is None:  # no prefix match, so grab up to version number
+        vn_split_re = re.compile("([-_][0-9]+[^0-9])")
+        name = vn_split_re.split(release, maxsplit=1)[0]
+    # The version is whatever's left in between (minus separator chars).
+    vn = release[len(name):(-1 - len(ext))]
+    if (vn[0] == '-' or vn[0] == '_' or vn[0] == '.'):
+        # Could do this with a regexp too, and that might be better.
+        # Although we check for a "." as separator here, in fact the
+        # vn_split_re regexp earlier doesn't (yet) allow that.
+        # However, there are probably packages out there that use a
+        # dot instead of an underscore or hyphen.  It might make sense
+        # to switch to using a regexp here, and sharing it with the
+        # earlier code, so that consistency is automatic.
+        vn = vn[1:]
+    return name, vn, ext,
+
+
 class ArchiveError(Exception):
     pass
 
@@ -235,12 +269,12 @@ def main():
 
     # If this is not None, it is a list of allowed prefixes to be
     # regexp-gobbled greedily before the release identifier is found.
-    # See the '--name-prefixes' option documentation for details.
-    name_prefixes = None
+    # See the '--known-names' option documentation for details.
+    known_names = None
 
     try:
-        (opts, args) = getopt.getopt(sys.argv[1:], "n:r:m:qh?", 
-                                     ["name-prefixes=",
+        (opts, args) = getopt.getopt(sys.argv[1:], "k:r:m:qh?", 
+                                     ["known-names=",
                                       "readme-prefix=", 
                                       "metadata-dir=",
                                       "quiet", 
@@ -257,8 +291,8 @@ def main():
             sys.exit(0)
         elif opt in ("-q", "--quiet",):
             quiet = True
-        elif opt in ("-n", "--name-prefixes",):
-            name_prefixes = optarg.split(",")
+        elif opt in ("-k", "--known-names",):
+            known_names = optarg.split(",")
         elif opt in ("-r", "--readme-prefix",):
             with open(optarg, 'r') as f:
                 readme_prefix = f.read()
@@ -275,19 +309,8 @@ def main():
         sys.stderr.write("%s\n" % __doc__)
         sys.exit(1)
 
-    front = "^([^/]+)(-|_)"
-    if name_prefixes is not None:
-        front = "^(" + "|".join([re.escape(x) for x in name_prefixes]) + ")"
-        front += "()"  # this is just to keep the match group count the same
-    relname_matcher = re.compile(front + "([0-9.]+)(\\.|-|_)" +
-                                 "(tar\\.gz|tgz|zip|ZIP|bzip|bzip2|z|Z|)$")
-
-    # Figure out the name of the thing.
-    m = relname_matcher.match(os.path.basename(args[0]))
-    if m is None:
-        sys.stderr.write("ERROR: Can't figure out name from '%s'.\n" % args[0])
-        sys.exit(1)
-    name = m.group(1).strip("-_")
+    name, ignored_rel_id, ignored_ext = parse_release(
+        os.path.basename(args[0]), known_names)
 
     # Place the git repository in cwd, with a "-repos" extension to
     # avoid collisions with tarballs that unpack to just 'name'.
@@ -316,16 +339,8 @@ def main():
 
     # Let's hope the user passed the arguments in the right order.
     for release_package in args:
-        m = relname_matcher.match(os.path.basename(release_package))
-        if m is None:
-            sys.stderr.write("ERROR: Can't parse release '%s'.\n" % args[0])
-            sys.exit(1)
-        rel_id = m.group(3)
-        extension = m.group(5)
-
-        # TODO: Although for now we assume tar, compressed with gzip
-        # or bzip2, we should make a wrapper extractor class and
-        # handle zipfiles or exotically compressed tarfiles too.
+        name, rel_id, ignored_ext = parse_release(
+            os.path.basename(release_package), known_names)
         rel = Archive(release_package)
         rel_members = rel.members()
         common_prefix = os.path.commonprefix(rel_members)
