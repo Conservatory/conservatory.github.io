@@ -160,18 +160,19 @@ def do_commit(rel_id, metadata_dir):
     params = {}
 
     # Gather any metadata from metadata_dir.
-    for fbase in ["msg", "date", "author",]:
-        path = os.path.join(metadata_dir, rel_id + "-" + fbase)
-        try:
-            with open(path, 'r') as f:
-                # TODO: Sanity-check the strings for quoting chars or
-                # other weirdness?
-                if fbase == "msg":
-                    params[fbase] = f.read()
-                else:
-                    params[fbase] = f.readline().strip()
-        except:
-            pass
+    if metadata_dir is not None:
+        for fbase in ["msg", "date", "author",]:
+            path = os.path.join(metadata_dir, rel_id + "-" + fbase)
+            try:
+                with open(path, 'r') as f:
+                    # TODO: Sanity-check the strings for quoting chars or
+                    # other weirdness?
+                    if fbase == "msg":
+                        params[fbase] = f.read()
+                    else:
+                        params[fbase] = f.readline().strip()
+            except:
+                pass
 
     # Build the 'git commit' command line, using whatever data we
     # found in metadata_dir.
