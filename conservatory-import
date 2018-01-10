@@ -189,6 +189,45 @@ def do_commit(rel_id, metadata_dir):
     subprocess.call(cmd)
 
 
+class ArchiveError(Exception):
+    pass
+
+
+class Archive:
+    """Wrapper class representing a Python3 tarfile or zipfile.
+    Works the way you think it does."""
+    # So, this is annoying.  Python3's 'tarfile' and 'zipfile' modules
+    # do basically the same thing, but their interfaces have a few
+    # needless differences, thus requiring this wrapper class.  If
+    # zipfile had open() instead of ZipFile() for its constructor, and
+    # had getnames() instead of namelist() for its member lister, then
+    # there would be no need for a wrapper at all.  The calling code
+    # could create the right kind of object conditionally based on the
+    # archive's extension (i.e., just inline the code from __init__()
+    # below), and thereafter make the identically-named method calls.
+    def __init__(self, infile):
+        self.kind = "tar"
+        if (infile.endswith(".zip") or
+            infile.endswith(".Zip") or
+            infile.endswith(".ZIP")):
+            self.kind = "zip"
+        if self.kind == "tar":
+            self.obj = tarfile.open(infile, 'r')
+        elif self.kind == "zip":
+            self.obj = zipfile.ZipFile(infile, 'r')
+        else:
+            raise ArchiveError("Unknown archive type: '%s'" % infile)
+    def members(self):
+        if self.kind == "tar":
+            return self.obj.getnames()
+        elif self.kind == "zip":
+            return self.obj.namelist()
+    def extract(self):
+        self.obj.extractall()
+    def close(self):
+        self.obj.close()
+
+
 def main():
     quiet = False
     readme_prefix = None
@@ -287,8 +326,8 @@ def main():
         # TODO: Although for now we assume tar, compressed with gzip
         # or bzip2, we should make a wrapper extractor class and
         # handle zipfiles or exotically compressed tarfiles too.
-        rel = tarfile.open(release_package, 'r')
-        rel_members = rel.getnames()
+        rel = Archive(release_package)
+        rel_members = rel.members()
         common_prefix = os.path.commonprefix(rel_members)
 
         # Security check.
@@ -301,7 +340,7 @@ def main():
 
         sandbox = tempfile.mkdtemp()
         os.chdir(sandbox)
-        rel.extractall()
+        rel.extract()
         if common_prefix != '': 
             os.chdir(common_prefix)
             
